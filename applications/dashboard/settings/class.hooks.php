@@ -141,7 +141,7 @@ class DashboardHooks implements Gdn_IPlugin {
          $Menu->AddLink('Appearance', T('Mobile Theme Options'), '/dashboard/settings/mobilethemeoptions', 'Garden.Settings.Manage');
 
 
-		$Menu->AddLink('Appearance', T('Messages'), '/dashboard/message', 'Garden.Settings.Manage');
+		$Menu->AddLink('Appearance', T('Messages'), '/dashboard/message', 'Garden.Messages.Manage');
 
       $Menu->AddItem('Users', T('Users'), FALSE, array('class' => 'Users'));
       $Menu->AddLink('Users', T('Users'), '/dashboard/user', array('Garden.Users.Add', 'Garden.Users.Edit', 'Garden.Users.Delete'));
@@ -160,7 +160,7 @@ class DashboardHooks implements Gdn_IPlugin {
       if (Gdn::Session()->CheckPermission(array('Garden.Moderation.Manage', 'Moderation.ModerationQueue.Manage'), FALSE))
          $Menu->AddLink('Moderation', T('Moderation Queue').' <span class="Popin" rel="/dashboard/log/count/moderate"></span>', 'dashboard/log/moderation');
       $Menu->AddLink('Moderation', T('Change Log'), 'dashboard/log/edits', 'Garden.Moderation.Manage');
-      $Menu->AddLink('Moderation', T('Banning'), 'dashboard/settings/bans', 'Garden.Moderation.Manage');
+      $Menu->AddLink('Moderation', T('Banning'), 'dashboard/settings/bans', 'Garden.Settings.Manage');
 
 		$Menu->AddItem('Forum', T('Forum Settings'), FALSE, array('class' => 'Forum'));
       $Menu->AddLink('Forum', T('Social'), 'dashboard/social', 'Garden.Settings.Manage');
