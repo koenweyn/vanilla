@@ -209,11 +209,6 @@ class DiscussionModel extends VanillaModel {
     * @return Gdn_DataSet SQL result.
     */
    public function Get($Offset = '0', $Limit = '', $Wheres = '', $AdditionalFields = NULL) {
-      ob_start();
-      debug_print_backtrace();
-      $trace = ob_get_clean();
-      Trace($trace);
-
       if ($Limit == '')
          $Limit = Gdn::Config('Vanilla.Discussions.PerPage', 50);
 
