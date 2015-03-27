@@ -211,7 +211,7 @@ class CategoryModel extends Gdn_Model {
     */
    protected static function BuildCache() {
       self::CalculateData(self::$Categories);
-//      self::JoinRecentPosts(self::$Categories);
+      self::JoinRecentPosts(self::$Categories);
 
       $expiry = self::CACHE_TTL + self::CACHE_GRACE;
       Gdn::Cache()->Store(self::CACHE_KEY, array(
@@ -1106,7 +1106,7 @@ class CategoryModel extends Gdn_Model {
             unset($Categories[$ID]);
       }
 
-      self::JoinRecentPosts($Categories);
+      //self::JoinRecentPosts($Categories);
       foreach ($Categories as &$Category) {
          if ($Category['ParentCategoryID'] <= 0)
             self::JoinRecentChildPosts($Category, $Categories);
