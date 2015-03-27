@@ -20,7 +20,11 @@ Contact Vanilla Forums Inc. at support [at] vanillaforums [dot] com
  * @package Vanilla
  */
 class CategoryModel extends Gdn_Model {
+
    const CACHE_KEY = 'Categories';
+   const CACHE_TTL = 600;
+   const CACHE_GRACE = 60;
+   const MASTER_VOTE_KEY = 'Categories.Rebuild.Vote';
 
    public $Watching = FALSE;
 
@@ -98,8 +102,9 @@ class CategoryModel extends Gdn_Model {
    }
 
    /**
+    * Gets either all of the categories or a single category.
     *
-    *
+    * @param int|string|bool $ID Either the category ID or the category url code.
     * @since 2.0.18
     * @access public
     * @param int $ID
@@ -110,25 +115,48 @@ class CategoryModel extends Gdn_Model {
       if (self::$Categories == NULL) {
 
          // Try and get the categories from the cache.
-         self::$Categories = Gdn::Cache()->Get(self::CACHE_KEY);
+         $categoriesCache = Gdn::Cache()->Get(self::CACHE_KEY);
+         $rebuild = true;
 
-         if (!self::$Categories) {
-            $Sql = Gdn::SQL();
-            $Sql = clone $Sql;
-            $Sql->Reset();
+         // If we received a valid data structure, extract the embedded expiry
+         // and re-store the real categories on our static property.
+         if (is_array($categoriesCache)) {
 
-            $Sql->Select('c.*')
-               //->Select('lc.DateInserted', '', 'DateLastComment')
-               ->From('Category c')
-               //->Join('Comment lc', 'c.LastCommentID = lc.CommentID', 'left')
-               ->OrderBy('c.TreeLeft');
+            // Test if it's time to rebuild
+            $rebuildAfter = val('expiry', $categoriesCache, null);
+            if (!is_null($rebuildAfter) && time() < $rebuildAfter) {
+               $rebuild = false;
+            }
+            self::$Categories = val('categories', $categoriesCache);
+         }
+         unset($categoriesCache);
 
-            self::$Categories = array_merge(array(), $Sql->Get()->ResultArray());
-            self::$Categories = Gdn_DataSet::Index(self::$Categories, 'CategoryID');
-            self::BuildCache();
+         if ($rebuild) {
+
+            // Try to get a rebuild lock
+            $haveRebuildLock = self::rebuildLock();
+            if ($haveRebuildLock) {
+                $Sql = Gdn::SQL();
+                $Sql = clone $Sql;
+                $Sql->Reset();
+
+                $Sql->Select('c.*')
+                   ->From('Category c')
+                   //->Select('lc.DateInserted', '', 'DateLastComment')
+                   //->Join('Comment lc', 'c.LastCommentID = lc.CommentID', 'left')
+                   ->OrderBy('c.TreeLeft');
+
+                self::$Categories = array_merge(array(), $Sql->Get()->ResultArray());
+                self::$Categories = Gdn_DataSet::Index(self::$Categories, 'CategoryID');
+                self::BuildCache();
+            }
          }
 
-         self::JoinUserData(self::$Categories, TRUE);
+         if (self::$Categories) {
+            self::JoinUserData(self::$Categories, TRUE);
+         } else {
+             return false;
+         }
 
       }
 
@@ -156,6 +184,28 @@ class CategoryModel extends Gdn_Model {
    }
 
    /**
+    * Request rebuild mutex
+    *
+    * Allows competing instances to "vote" on the process that gets to rebuild
+    * the category cache.
+    *
+    * @return boolean whether we may rebuild
+    */
+   protected static function rebuildLock() {
+      static $isMaster = null;
+      if (is_null($isMaster)) {
+         // Vote for master
+         $instanceKey = posix_getpid();
+         $masterKey = Gdn::cache()->add(self::MASTER_VOTE_KEY, $instanceKey, [
+            Gdn_Cache::FEATURE_EXPIRY => self::CACHE_GRACE
+         ]);
+
+         $isMaster = ($instanceKey == $masterKey);
+      }
+      return (bool)$isMaster;
+   }
+
+   /**
     * Build and augment the category cache
     *
     * @param array $Categories
@@ -163,8 +213,13 @@ class CategoryModel extends Gdn_Model {
    protected static function BuildCache() {
       self::CalculateData(self::$Categories);
 //      self::JoinRecentPosts(self::$Categories);
-      Gdn::Cache()->Store(self::CACHE_KEY, self::$Categories, array(
-         Gdn_Cache::FEATURE_EXPIRY  => 600,
+
+      $expiry = self::CACHE_TTL + self::CACHE_GRACE;
+      Gdn::Cache()->Store(self::CACHE_KEY, array(
+         'expiry' => time() + $expiry,
+         'categories' => self::$Categories
+      ), array(
+         Gdn_Cache::FEATURE_EXPIRY  => $expiry,
          Gdn_Cache::FEATURE_SHARD   => self::$ShardCache
       ));
    }
@@ -324,6 +379,23 @@ class CategoryModel extends Gdn_Model {
       foreach (self::Categories() as $Category) {
          if ($Category['CategoryID'] > 0)
             return $Category;
+      }
+   }
+
+   /**
+    * Remove categories that a user does not have permission to view.
+    *
+    * @param array $categoryIDs An array of categories to filter.
+    * @return array Returns an array of category IDs that are okay to view.
+    */
+   public static function filterCategoryPermissions($categoryIDs) {
+      $permissionCategories = static::GetByPermission('Discussions.View');
+
+      if ($permissionCategories === true) {
+         return $categoryIDs;
+      } else {
+         $permissionCategoryIDs = array_keys($permissionCategories);
+         return array_intersect($categoryIDs, $permissionCategoryIDs);
       }
    }
 
@@ -944,6 +1016,7 @@ class CategoryModel extends Gdn_Model {
    }
 
    /**
+    * Get the subtree starting at a given parent.
     *
     *
     * @since 2.0.18
