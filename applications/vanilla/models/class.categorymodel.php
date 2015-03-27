@@ -135,7 +135,7 @@ class CategoryModel extends Gdn_Model {
 
             // Try to get a rebuild lock
             $haveRebuildLock = self::rebuildLock();
-            if ($haveRebuildLock) {
+            if ($haveRebuildLock || !self::$Categories) {
                 $Sql = Gdn::SQL();
                 $Sql = clone $Sql;
                 $Sql->Reset();
@@ -149,6 +149,11 @@ class CategoryModel extends Gdn_Model {
                 self::$Categories = array_merge(array(), $Sql->Get()->ResultArray());
                 self::$Categories = Gdn_DataSet::Index(self::$Categories, 'CategoryID');
                 self::BuildCache();
+
+                // Release lock
+                if ($haveRebuildLock) {
+                    self::rebuildLock(true);
+                }
             }
          }
 
@@ -191,8 +196,12 @@ class CategoryModel extends Gdn_Model {
     *
     * @return boolean whether we may rebuild
     */
-   protected static function rebuildLock() {
+   protected static function rebuildLock($release = false) {
       static $isMaster = null;
+      if ($release) {
+         Gdn::cache()->remove(self::MASTER_VOTE_KEY);
+         return;
+      }
       if (is_null($isMaster)) {
          // Vote for master
          $instanceKey = posix_getpid();
