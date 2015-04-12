@@ -169,7 +169,7 @@ class CategoriesController extends VanillaController {
          $this->SetData('Category', $Category, TRUE);
 
          $this->Title(htmlspecialchars(GetValue('Name', $Category, '')));
-         $this->Description(GetValue('Description', $Category), TRUE);
+         $this->Description(GetValue('Description', $Category));
 
 
          if ($Category->DisplayAs == 'Categories') {
